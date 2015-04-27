@@ -131,7 +131,7 @@
     /**
      * Fly the card out or animate back into resting position.
      */
-    transitionOut: function(e) {
+    _endSwipe: function(deltaX, deltaY, velocityX) {
       var self = this;
 
       if(this.isUnderThreshold()) {
@@ -140,8 +140,8 @@
       }
 
       self.onTransitionOut(self.thresholdAmount);
-      
-      var angle = Math.atan(e.gesture.deltaX / e.gesture.deltaY);
+
+      var angle = Math.atan(deltaX / deltaY);
 
       var dir = this.thresholdAmount < 0 ? -1 : 1;
       var targetX;
@@ -157,19 +157,23 @@
       // Fly out
       var rotateTo = this.rotationAngle;//(this.rotationAngle this.rotationDirection * 0.2));// || (Math.random() * 0.4);
 
-      var duration = 0.3 - Math.min(Math.max(Math.abs(e.gesture.velocityX)/10, 0.05), 0.2);
-      
+      var duration = 0.3 - Math.min(Math.max(Math.abs(velocityX)/10, 0.05), 0.2);
+
       ionic.requestAnimationFrame(function() {
         self.el.style.transform = self.el.style.webkitTransform = 'translate3d(' + targetX + 'px, ' + targetY + 'px,0) rotate(' + self.rotationAngle + 'rad)';
         self.el.style.transition = self.el.style.webkitTransition = 'all ' + duration + 's ease-in-out';
       });
 
-      //this.onSwipe && this.onSwipe();
+      var viewCallbackFunction = this['onSwipe' + (dir > 0 ? 'Right' : 'Left')];
+      viewCallbackFunction && viewCallbackFunction();
 
       // Trigger destroy after card has swiped out
       setTimeout(function() {
         self.onDestroy && self.onDestroy();
       }, duration * 1000);
+    },
+    transitionOut: function(e) {
+      this._endSwipe(e.gesture.deltaX, e.gesture.deltaY, e.gesture.velocityX);
     },
 
     /**
@@ -225,16 +229,13 @@
       this.touchDistance = distance * 10;
     },
 
-    _doDrag: function(e) {
-      if (this.isDragDisabled()) return;
-      e.preventDefault();
-
-      var o = e.gesture.deltaX / -1000;
+    _onMove: function(deltaX, deltaY) {
+      var o = deltaX / -1000;
 
       this.rotationAngle = Math.atan(o);
 
-      this.x = this.startX + (e.gesture.deltaX * 0.8);
-      this.y = this.startY + (e.gesture.deltaY * 0.8);
+      this.x = this.startX + (deltaX * 0.8);
+      this.y = this.startY + (deltaY * 0.8);
 
       this.el.style.transform = this.el.style.webkitTransform = 'translate3d(' + this.x + 'px, ' + this.y  + 'px, 0) rotate(' + (this.rotationAngle || 0) + 'rad)';
 
@@ -245,6 +246,13 @@
       setTimeout(function() {
         self.onPartialSwipe(self.thresholdAmount);
       });
+    },
+
+    _doDrag: function(e) {
+      if (this.isDragDisabled()) return;
+      e.preventDefault();
+
+      this._onMove(e.gesture.deltaX, e.gesture.deltaY);
     },
     _doDragEnd: function(e) {
       if (this.isDragDisabled()) return;
@@ -279,15 +287,16 @@
       require: '^tdCards',
       transclude: true,
       scope: {
-        onSwipeLeft: '&',
-        onSwipeRight: '&',
+        onTdSwipeLeft: '&',
+        onTdSwipeRight: '&',
         onTransitionLeft: '&',
         onTransitionRight: '&',
         onTransitionOut: '&',
         onPartialSwipe: '&',
         onSnapBack: '&',
         onDestroy: '&',
-        dragDisabled: '&'
+        dragDisabled: '&',
+        swipeProgrammatically: '='
       },
       compile: function(element, attr) {
         return function($scope, $element, $attr, swipeCards) {
@@ -304,7 +313,7 @@
             leftText: leftText,
             rightText: rightText,
             isDragDisabled: function() {
-              return $scope.dragDisabled();
+              return $scope.dragDisabled() || swipeCards._programmaticalSwipeInProgress;
             },
             onPartialSwipe: function(amt) {
               swipeCards.partial(amt);
@@ -322,12 +331,12 @@
             },
             onSwipeRight: function() {
               $timeout(function() {
-                $scope.onSwipeRight();
+                $scope.onTdSwipeRight();
               });
             },
             onSwipeLeft: function() {
               $timeout(function() {
-                $scope.onSwipeLeft();
+                $scope.onTdSwipeLeft();
               });
             },
             onTransitionRight: function() {
@@ -373,7 +382,7 @@
                 frequency: 15,
                 friction: 250,
                 initialForce: false
-              }) 
+              })
 
               .on('step', function(v) {
                 var xPos = startX - startX*v;
@@ -398,6 +407,30 @@
           });
           $scope.$parent.swipeCard = swipeableCard;
 
+          $scope.swipeProgrammatically = function(isLeft) {
+            if (swipeCards._programmaticalSwipeInProgress) return;
+
+            swipeCards._programmaticalSwipeInProgress = true;
+            var xDestination = (isLeft ? -1 : 1) * swipeableCard.parentWidth / 2;
+            var yDestination = 20;
+
+            var animation = collide.animation({
+              // 'linear|ease|ease-in|ease-out|ease-in-out|cubic-bezer(x1,y1,x2,y2)',
+              // or function(t, duration),
+              // or a dynamics configuration (see below)
+              duration: 200,
+              percent: 0,
+              reverse: false
+            })
+            .on('step', function(v) {
+              ionic.requestAnimationFrame(function() { swipeableCard._onMove(xDestination * v, yDestination * v); });
+            })
+            .on('stop', function() {
+              ionic.requestAnimationFrame(function() { swipeableCard._endSwipe(xDestination, yDestination, 0.1); });
+              delete swipeCards._programmaticalSwipeInProgress;
+            })
+            .start();
+          };
         }
       }
     }
