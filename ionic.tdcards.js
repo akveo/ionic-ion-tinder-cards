@@ -431,6 +431,8 @@
             })
             .start();
           };
+
+          swipeCards.sortCards();
         }
       }
     }
@@ -469,9 +471,16 @@
           }
         };
 
-        $timeout(function() {
-          sortCards();
-        });
+        var alreadyDelegated = false;
+        this.sortCards = function() {
+          if (!alreadyDelegated) {
+            $timeout(function() {
+              alreadyDelegated = false;
+              sortCards();
+            });
+            alreadyDelegated = true;
+          }
+        };
 
         var bringCardUp = function(card, amt, max) {
           var position, newTop;
