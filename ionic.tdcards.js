@@ -307,6 +307,10 @@
           // Force hardware acceleration for animation - better performance on first touch
           el.style.transform = el.style.webkitTransform = 'translate3d(0px, 0px, 0px)';
 
+          $scope.$on('tinderCards.swipeProgrammatically', function (evt, isLeft) {
+            $element.hasClass('card-0') && $scope.swipeProgrammatically(isLeft);
+          });
+
           // Instantiate our card view
           var swipeableCard = new SwipeableCardView({
             el: el,
