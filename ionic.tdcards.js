@@ -295,8 +295,7 @@
         onPartialSwipe: '&',
         onSnapBack: '&',
         onDestroy: '&',
-        dragDisabled: '&',
-        swipeProgrammatically: '='
+        dragDisabled: '&'
       },
       compile: function(element, attr) {
         return function($scope, $element, $attr, swipeCards) {
